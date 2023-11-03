@@ -1,3 +1,35 @@
+# Semi Flamegraph and extension to profile.lua
+Let's start with what you get:
+![a report](screenshot.png)
+
+This repo expands original profile.lua by adding two functions to export an HTML and JSON file with 
+profile data. Generic usage could be done like that:
+```
+local filename = "profile.txt"
+local depth = 30
+local json = profile.tracingJSON()
+local report = profile.report(depth or 30)
+
+local js   = profile.flameJS()
+local html = profile.flameHTML(filename:gsub(".txt",".js"),report)
+
+profile.reset()
+api.writeFile(filename, report)
+api.writeFile(filename:gsub(".txt",".json"), json)
+api.writeFile(filename:gsub(".txt",".js"), js)
+api.writeFile(filename:gsub(".txt",".html"), html)
+
+-- set tab separated clipboard, so it can be pasted into Excel
+log("clipboard set")
+love.system.setClipboardText( (report.."\n"):gsub('[^\n]*%+%-[^\n]*\n', ''):gsub('|', '\t') )
+```
+
+Once pfofiling is done we grab report, js and put them into HTML file. Additional json file can be imported 
+directly into [[chrome://tracing]]. 
+
+Please note, that order of function calls on each stack is alphabetical as I wanted to have a statstic breakdown in order to visualize bottlenecks. The rationale to export HTML and JS data file was to refresh quickly the report and compare it visually with previous one.
+By default bars are stretched horizontally but input in lower left corner can adjust scale so two reports are normalized.
+
 # Profile.lua
 profile.lua is a small, non-intrusive module for finding bottlenecks in your Lua code.
 The profiler is used by making minimal changes to your existing code.
