@@ -22,7 +22,7 @@ local _internal = {}
 -- table where keys are stack functions separated by '/' and value is total time spent in that function
 local _stacktime = {}
 
-local function GetStack(depth,topfunction)
+local function GetStack(depth,...)
   -- depth = depth or 3
   local output, sep, info = "", ""
   while true do
@@ -31,14 +31,18 @@ local function GetStack(depth,topfunction)
       output =  (info.name or "?") .. sep .. output
       sep = "/"
       depth = depth + 1
-      -- if info.name==topfunction then break end
+      local shoudBreak = false
+      for _,v in pairs(arg) do
+        if info.name==v then shoudBreak=true end
+      end
+      if shoudBreak then break end
   end
   return output, depth
 end
 
 function profile.flamebuilder(event, line, info)
   -- Generate the stack key
-  local stack_key, depth = GetStack(1, "_update")
+  local stack_key, depth = GetStack(1, "_update", "_draw")
 
   local cur = _stacktime[stack_key]
   local val = cur or {}
@@ -155,8 +159,9 @@ function profile.tracingJSON()
   return output
 end
 
-function profile.flameHTML(datafile,extraContent)
+function profile.flameHTML(dataFile,extraContent)
   extraContent = extraContent or ""
+  local dataScript = dataFile and "<script src="..dataFile.."></script>" or "<script>"..profile.flameJS().."</script>"
   local o = [[<html>
   <style>
   a, body {
@@ -209,7 +214,7 @@ function profile.flameHTML(datafile,extraContent)
   <a href=# onclick='scale=1000;go();'>1000</a>
   <a href=# onclick='scale=2000;go();'>2000</a>
   </div>
-  <script src=]]..datafile..[[></script>
+  ]]..dataScript..[[
   <script>
   let width = document.documentElement.clientWidth-8;
   var maxtime = Math.max(...data.map(obj => obj.time));

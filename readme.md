@@ -4,7 +4,7 @@ Let's start with what you get:
 
 This repo expands original profile.lua by adding two functions to export an HTML and JSON file with 
 profile data. Generic usage could be done like that:
-```
+```lua
 local filename = "profile.txt"
 local depth = 30
 local json = profile.tracingJSON()
@@ -24,11 +24,91 @@ log("clipboard set")
 love.system.setClipboardText( (report.."\n"):gsub('[^\n]*%+%-[^\n]*\n', ''):gsub('|', '\t') )
 ```
 
-Once pfofiling is done we grab report, js and put them into HTML file. Additional json file can be imported 
+Once profiling is done we grab report, js and put them into HTML file. Additional json file can be imported 
 directly into [[chrome://tracing]]. 
 
 Please note, that order of function calls on each stack is alphabetical as I wanted to have a statstic breakdown in order to visualize bottlenecks. The rationale to export HTML and JS data file was to refresh quickly the report and compare it visually with previous one.
 By default bars are stretched horizontally but input in lower left corner can adjust scale so two reports are normalized.
+
+# LOVE2D profiling example
+a main.lua stub with upate and draw profiling 
+```lua
+profile = require('profile')
+__profiling = {
+	S = -1, -- special profiling, set above 0 will profile this number of frames, at 0 writes report, at negative does nothing 
+	R = -1, -- special render/draw profiling for _draw()
+	U = -1, -- update profiling 
+	D = -1, -- draw profiling
+	frames = 2
+}
+function writeFile(name, contents) local file = love.filesystem.newFile(name, "w") file:write(contents) file:close() end
+-- checks if counter reached 0, if so writes report
+-- decreases counter and returns its value
+function profileReport(counter, filename, depth)
+	if counter>=0 then print("PROFILING ",counter,"  \r") end
+	if counter == 0 then
+		local json = profile.tracingJSON()
+		local report = profile.report(depth or 30)
+		local html = profile.flameHTML(nil,report)
+		print(filename)
+		print(report)
+		profile.reset()
+		writeFile(filename, report)
+		writeFile(filename:gsub(".txt",".json"), json)
+		writeFile(filename:gsub(".txt",".html"), html)
+		-- set tab separated clipboard
+		love.system.setClipboardText( (report.."\n"):gsub('[^\n]*%+%-[^\n]*\n', ''):gsub('|', '\t') )
+	end
+	return counter - 1
+end
+local function isCtrlOrGuiDown() return love.keyboard.isDown("lctrl") or love.keyboard.isDown("lgui") or love.keyboard.isDown("rctrl") or love.keyboard.isDown("rgui") end
+local function isAltDown() return love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt") end
+local function isShiftDown() return love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")end
+-- "F9+Shift          - profile update
+-- "F9+Shift+Ctrl     - profile draw
+-- "F9+Shift+Alt      - profile special
+-- "F9+Shift+Ctrl+Alt - profile render
+function love.keypressed(key)
+	if key == "f9" and isShiftDown() and not isCtrlOrGuiDown() and not isAltDown() then
+		if __profiling.U<0 then 
+			print('PROFILING UPDATE ('..__profiling.frames..') ...')
+			__profiling.U = __profiling.frames 
+		end
+	elseif key == "f9" and isShiftDown() and     isCtrlOrGuiDown() and not isAltDown() then
+		if __profiling.D<0 then 
+			print('PROFILING DRAW ('..__profiling.frames..') ...')
+			__profiling.D = __profiling.frames
+		end
+	elseif key == "f9" and isShiftDown() and not isCtrlOrGuiDown() and     isAltDown() then
+		if __profiling.S<0 then 
+			print('PROFILING SPECIAL ('..__profiling.frames..') ...')
+			__profiling.S = __profiling.frames
+		end
+	elseif key == "f9" and isShiftDown() and     isCtrlOrGuiDown() and     isAltDown() then
+		if __profiling.D<0 then 
+			print('PROFILING RENDER ('..__profiling.frames..') ...')
+			__profiling.R = __profiling.frames
+		end
+	end
+end
+function love.update(dt)
+	if __profiling.U>0 then profile.start() end
+  -- UPDATE EVERYTHING
+	if __profiling.U>0 then profile.stop() end
+	
+	__profiling.U = profileReport(__profiling.U, "profileU.txt", 30)
+	__profiling.S = profileReport(__profiling.S, "profileS.txt", 30)
+end
+
+function love.draw()
+	if __profiling.D>0 then profile.start() end
+  -- DRAW EVERYTHING
+	if __profiling.D>0 then profile.stop() end
+	
+	__profiling.D = profileReport(__profiling.D, "profileD.txt", 30)
+	__profiling.R = profileReport(__profiling.R, "profileR.txt", 30)
+end
+```
 
 # Profile.lua
 profile.lua is a small, non-intrusive module for finding bottlenecks in your Lua code.
